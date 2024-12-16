@@ -27,14 +27,14 @@ export default function RootLayout({
 }>) {
 	return (
 		<html lang="en">
-			<body
-				className={`${geistSans.variable} ${geistMono.variable} antialiased p-4 bg-gray-50 text-gray-950 pt-4 sm:pt-12 dark:bg-gray-900 dark:text-gray-50 dark:text-opacity-90 mx-auto max-w-[1440px] pb-[10px] min-h-full relative`}
-			>
-				<ThemeContextProvider>
+			<ThemeContextProvider>
+				<body
+					className={`${geistSans.variable} ${geistMono.variable} antialiased  p-4 bg-gray-50 text-gray-950 pt-4 sm:pt-12 dark:bg-gray-900 dark:text-gray-50 dark:text-opacity-90 mx-auto max-w-[1440px] pb-[10px] min-h-full relative`}
+				>
 					{children}
 					<ThemeSwitch />
-				</ThemeContextProvider>
-			</body>
+				</body>
+			</ThemeContextProvider>
 		</html>
 	);
 }

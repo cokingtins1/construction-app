@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model WBSTemplate {
+  id            String  @id @default(uuid())
+  project_phase String
+  department    String
+  total_dollars Float   @default(0)
+  total_hours   Float   @default(0)
+  is_template   Boolean
+
+  WBSActivity WBSActivity[] // One-to-many relation with WBSActivity
+}
+
+model WBSActivity {
+  id              String       @id @default(uuid())
+  task            String
+  notes           String?
+  total_dollars   Float        @default(0)
+  total_hours     Float        @default(0)
+  wbs_template_id String
+  WBSTemplate     WBSTemplate? @relation(fields: [wbs_template_id], references: [id], onDelete: Cascade)
+
+  WBSAssignment WBSAssignment[] // Many-to-many relation with TeamMember through WBSAssignment
+}
+
+model WBSAssignment {
+  id              String @id @default(uuid())
+  wbs_activity_id String // Foreign key to WBSActivity
+  team_member_id  String // Foreign key to TeamMember
+  hours           Float  @default(0)
+  rate            Float  @default(0)
+  total_dollars   Float  @default(0)
+  total_hours     Float  @default(0)
+
+  // Relationships
+  WBSActivity WBSActivity @relation(fields: [wbs_activity_id], references: [id], onDelete: Cascade)
+  TeamMember  TeamMember  @relation(fields: [team_member_id], references: [id], onDelete: Cascade)
+}
+
+model TeamMember {
+  id          String  @id @default(uuid())
+  first_name  String
+  last_name   String
+  middle_name String?
+  email       String
+  department  String
+  title       String
+
+  rate_level      RateLevel       @relation(fields: [rate_level_code], references: [code])
+  rate_level_code String
+  WBSAssignment   WBSAssignment[]
+}
+
+model RateLevel {
+  id         String @id @default(uuid())
+  level_name String
+  code       String @unique
+  rate       Int
+
+  // TeamMember model is referencing this table
+  TeamMember TeamMember[]
+}
+
+model Project {
+  id             String @id @default(uuid())
+  project_number String
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  // WBSTemplate WBSTemplate[]
+}
+
+model Client {
+  id   String @id @default(uuid())
+  name String
+
+  // WBSTemplate WBSTemplate[]
+  Project Project[]
+}

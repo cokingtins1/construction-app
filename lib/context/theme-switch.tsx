@@ -7,7 +7,7 @@ export default function ThemeSwitch() {
 	const { toggleTheme } = useTheme();
 
 	return (
-		<Button className="fixed bottom-5 left-12 dark" onClick={toggleTheme}>
+		<Button className="fixed bottom-5 left-12" onClick={toggleTheme}>
 			Toggle Theme
 		</Button>
 	);
