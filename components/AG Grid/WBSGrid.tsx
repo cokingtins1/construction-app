@@ -152,7 +152,7 @@ export default function WBSGrid() {
 	};
 
 	return (
-		<div className="relative w-[1280px] h-full">
+		<div className="relative w-[1280px] h-[700px]">
 			<AgGridReact
 				theme={getTheme(theme)}
 				rowData={rowData}

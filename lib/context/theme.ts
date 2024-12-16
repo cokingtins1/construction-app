@@ -7,7 +7,7 @@ import {
 	colorSchemeDarkBlue,
 	colorSchemeLightWarm,
 	themeQuartz,
-	themeAlpine
+	themeAlpine,
 } from "ag-grid-community";
 import { Theme, useTheme } from "./theme-context";
 
@@ -21,8 +21,17 @@ ModuleRegistry.registerModules([
 
 export const getTheme = (theme: Theme) => {
 	return theme === "dark"
-		? themeAlpine.withPart(colorSchemeDarkBlue)
-		: themeAlpine.withPart(colorSchemeLightWarm);
+		? themeAlpine.withParams({
+				rowBorder: { style: "solid", width: 1, color: "#404854" },
+				columnBorder: { style: "solid", width: 1, color: "#404854" },
+		  })
+		: themeAlpine.withParams({
+				rowBorder: { style: "solid", width: 1, color: "#404854" },
+				columnBorder: { style: "solid", width: 1, color: "#404854" },
+		  });
+	// return theme === "dark"
+	// 	? themeAlpine.withPart(colorSchemeDarkBlue)
+	// 	: themeAlpine.withPart(colorSchemeLightWarm);
 };
 
 // export const gridTheme = themeQuartz

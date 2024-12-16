@@ -84,6 +84,12 @@ body {
 	}
 }
 
-.ag-theme-alpine .ag-cell {
-	border-right: 1px solid #ffffff;
-  }
+/* .ag-cell {
+	border-right-color: var(--secondary-foreground);
+	border-right-width: 1px;
+	border-right-style: solid;
+} */
+
+/* .ag-theme-alpine .ag-cell {
+	border-right: 1px solid var(--secondary-foreground);
+  } */
