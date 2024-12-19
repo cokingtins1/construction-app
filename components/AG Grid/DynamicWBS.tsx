@@ -68,23 +68,39 @@ export default function DynamicWBS({ data }: DynamicWBSProps) {
 			field: `hours_${id}`,
 			colId: "teamMember",
 			headerName: `${rate_level_code}`,
-			editable: true,
 			cellDataType: "number",
+			width: 48,
 			valueGetter: (params: ValueGetterParams) =>
 				params.data.WBSAssignment?.find(
 					(a: WBSAssignment) => a.team_member_id === id
 				)?.hours || 0,
-			valueSetter: (params: ValueSetterParams) => {
-				const assignment = params.data.WBSAssignment.find(
+
+			valueSetter: (params: ValueSetterParams<WBSActivityWithAssignments>) => {
+				const { newValue, data } = params;
+				const assignment = data.WBSAssignment.find(
 					(a: WBSAssignment) => a.team_member_id === id
 				);
+
+                const wbsActivityId = assignment?.wbs_activity_id
+
 				if (assignment) {
-					assignment.hours = Number(params.newValue);
-					params.data.total_hours = calculateTotalHours(params.data);
-					params.data.total_dollars = calculateTotalDollars(
-						params.data
-					);
+					assignment.hours = Number(newValue) || 0;
+				} else {
+					// If no assignment exists, create a new one
+                    
+					data.WBSAssignment.push({
+						id: id,
+                        wbs_activity_id: wbsActivityId,
+						hours: Number(newValue) || 0,
+						rate: 0, // Set a default rate if needed
+					});
 				}
+
+				// Update totals
+				data.total_hours = (params: any) => calculateTotalHours(params);
+				data.total_dollars = (params: any) =>
+					calculateTotalDollars(params);
+
 				return true;
 			},
 			valueFormatter: (params: { value: number }) =>
@@ -92,44 +108,13 @@ export default function DynamicWBS({ data }: DynamicWBSProps) {
 		})
 	);
 
-	// const calculateTotalHours = (
-	// 	rowData: WBSActivityWithAssignments
-	// ): number => {
-	// 	return (
-	// 		rowData.WBSAssignment?.reduce(
-	// 			(sum: number, assignment: WBSAssignment) =>
-	// 				sum + (assignment.hours || 0),
-	// 			0
-	// 		) || 0
-	// 	);
-	// };
-
-	// Calculate total dollars for a row
-	// const calculateTotalDollars = (
-	// 	// rowData: WBSActivityWithAssignments
-	// 	rowHours: number | undefined,
-	// 	rowRate: number | undefined
-	// ): number => {
-	// 	if (rowHours && rowRate) {
-	// 		return rowHours * rowRate;
-	// 	}
-	// 	return 0; // Return 0 if either is undefined
-	// 	// return (
-	// 	// 	rowData.WBSAssignment?.reduce(
-	// 	// 		(sum: number, assignment: WBSAssignment) =>
-	// 	// 			sum + (assignment.total_dollars || 0),
-	// 	// 		0
-	// 	// 	) || 0
-	// 	// );
-	// };
-
 	// Horizontal Totals
 	const totalsColDefs: ColDef[] = [
 		{
 			field: "totalHours",
 			headerName: "Total Hours",
 			editable: false,
-			valueGetter: calculateTotalHours,
+			valueGetter: (params) => calculateTotalHours(params),
 
 			cellStyle: { fontWeight: "bold" },
 			valueFormatter: (params) => {
@@ -140,7 +125,7 @@ export default function DynamicWBS({ data }: DynamicWBSProps) {
 			field: "totalDollars",
 			headerName: "Total Dollars",
 			editable: false,
-			valueGetter: calculateTotalDollars,
+			valueGetter: (params) => calculateTotalDollars(params),
 
 			cellStyle: { fontWeight: "bold" },
 			valueFormatter: (params) => {
@@ -154,8 +139,11 @@ export default function DynamicWBS({ data }: DynamicWBSProps) {
 	function calculateTotalHours(
 		params: ValueGetterParams<WBSActivityWithAssignments>
 	) {
-		const hours = params.node?.data?.WBSAssignment;
-		const totalHours = hours?.reduce((sum, row) => sum + row.hours, 0);
+		const hours = params.node?.data?.WBSAssignment ?? [];
+		const totalHours = hours?.reduce(
+			(sum, row) => sum + (row.hours || 0),
+			0
+		);
 
 		return totalHours || 0;
 	}
@@ -164,8 +152,9 @@ export default function DynamicWBS({ data }: DynamicWBSProps) {
 		params: ValueGetterParams<WBSActivityWithAssignments>
 	) {
 		const hours = params.node?.data?.WBSAssignment;
+		console.log("hours:", hours);
 		const totalHours = hours?.reduce(
-			(sum, row) => sum + row.hours * row.rate,
+			(sum, row) => sum + (row.hours || 0) * (row.rate || 0),
 			0
 		);
 
@@ -248,21 +237,30 @@ export default function DynamicWBS({ data }: DynamicWBSProps) {
 		setTotalsRow([totalsRow]);
 	};
 
-	// console.log(colDefs.map((col) => col.field));
-
 	useEffect(() => {
 		updateTotalsRow(rowData, colDefs);
 	}, [rowData]);
 
 	const handleCellValueChanged = (params: any) => {
 		const updatedRowData = [...rowData];
-		const updatedRowIndex = updatedRowData.findIndex(
+		const rowIndex = updatedRowData.findIndex(
 			(row) => row.task === params.data.task
 		);
-		if (updatedRowIndex !== -1) {
-			updatedRowData[updatedRowIndex] = params.data;
-			setRowData(updatedRowData);
+
+		const balls = calculateTotalDollars(params);
+		const balls2 = calculateTotalHours(params);
+		console.log(balls, balls2);
+
+		if (rowIndex !== -1) {
+			updatedRowData[rowIndex] = {
+				...params.data,
+				total_hours: calculateTotalHours(params),
+				total_dollars: calculateTotalDollars(params),
+			};
 		}
+
+		setRowData(updatedRowData);
+		updateTotalsRow(updatedRowData, colDefs);
 	};
 
 	return (

@@ -151,6 +151,8 @@ export default function WBSGrid() {
 		}
 	};
 
+	console.log("RENDER!");
+
 	return (
 		<div className="relative w-[1280px] h-[700px]">
 			<AgGridReact

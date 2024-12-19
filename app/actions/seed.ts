@@ -1,4 +1,4 @@
-import { prisma } from "@/prisma/__base";
+import prisma from "@/prisma/__base";
 import {
 	Client,
 	Project,
