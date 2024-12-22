@@ -1,11 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+	CellClassParams,
+	CellPosition,
+	CellStyle,
+	CellStyleFunc,
+	CellValueChangedEvent,
 	ColDef,
-	RowSelectionOptions,
+	ColSpanParams,
+	GridOptions,
+	NavigateToNextCellParams,
+	RowSpanParams,
+	SuppressKeyboardEventParams,
+	TabToNextCellParams,
+	ValueFormatterLiteParams,
+	ValueFormatterParams,
 	ValueGetterParams,
-	ValueSetterParams,
+	ValueParserParams,
 } from "ag-grid-community";
 import {
 	AllCommunityModule,
@@ -16,7 +28,12 @@ import {
 import { AgGridReact } from "ag-grid-react";
 import { getTheme } from "@/lib/context/theme";
 import { useTheme } from "@/lib/context/theme-context";
-import { formatDollars, rateLevelOrder } from "@/lib/utils";
+import {
+	convertCurrencyToNum,
+	formatDollars,
+	getRateByEmpId,
+	rateLevelOrder,
+} from "@/lib/utils";
 import {
 	RateLevel,
 	TeamMember,
@@ -25,255 +42,539 @@ import {
 	WBSTemplate,
 } from "@prisma/client";
 import { ActivitiesWithAssignments } from "@/lib/types";
-import { number } from "zod";
+
+import { Button } from "../ui/button";
+import { DB_DATA } from "@/app/(routes)/ag-grid/data";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-type DynamicWBSProps = {
-	data: ActivitiesWithAssignments;
-};
-export default function DynamicWBS({ data }: DynamicWBSProps) {
+export default function DynamicWBS() {
 	const { theme } = useTheme();
 
-	const tasks = data.map((row) => row);
+	const { rateLevel, WBSAssignments, WBSActivities, addTeamMember } =
+		useMemo(() => {
+			return DB_DATA;
+		}, [DB_DATA]);
 
-	const teamMembers: TeamMember[] = Array.from(
-		new Map(
-			data
-				.flatMap((activity) => activity.WBSAssignment)
-				.map((assignment) => [
-					assignment.team_member_id,
-					assignment.TeamMember,
-				])
-		).values()
-	).sort((a, b) => {
-		const aOrder = rateLevelOrder[a.rate_level_code] ?? 4;
-		const bOrder = rateLevelOrder[b.rate_level_code] ?? 4;
-		return aOrder - bOrder;
-	});
+	const [teamMembers, setTeamMembers] = useState(() => DB_DATA.teamMembers);
 
-	const [rowData, setRowData] = useState<WBSActivityWithAssignments[]>(tasks);
+	const containerStyle = useMemo(
+		() => ({ width: "100%", height: "100%" }),
+		[]
+	);
+	const gridStyle = useMemo(() => ({ height: "100%", width: "100%" }), []);
 
 	const defaultColDef: ColDef = {
 		filter: false,
 		suppressMovable: true,
 		editable: true,
-		// cellStyle: {
-		// 	borderRight: "1px solid var(--row-border)",
-		// },
 	};
 
-	const dynamicColDefs: ColDef[] = teamMembers.map(
-		({ rate_level_code, id }) => ({
-			field: `hours_${id}`,
-			colId: "teamMember",
-			headerName: `${rate_level_code}`,
-			cellDataType: "number",
-			width: 48,
-			valueGetter: (params: ValueGetterParams) =>
-				params.data.WBSAssignment?.find(
-					(a: WBSAssignment) => a.team_member_id === id
-				)?.hours || 0,
+	const gridRef = useRef<AgGridReact>(null);
 
-			valueSetter: (params: ValueSetterParams<WBSActivityWithAssignments>) => {
-				const { newValue, data } = params;
-				const assignment = data.WBSAssignment.find(
-					(a: WBSAssignment) => a.team_member_id === id
+	const [rowData, setRowData] = useState(() => prepareGridData());
+
+	const calcTotalHours = (params: ValueGetterParams) => {
+		if (params.data.task === "Total Dollars") return null;
+		return teamMembers.reduce(
+			(sum, member) => sum + (Number(params.data[member.id]) || 0),
+			0
+		);
+	};
+
+	const calcTotalDollars = (params: ValueGetterParams) => {
+		if (params.data.task === "Total Dollars") {
+			return Object.entries(params.data as Record<string, string>).reduce(
+				(sum, [key, value]) => {
+					return sum + convertCurrencyToNum(value);
+				},
+				0
+			);
+		} else if (params.data.task === "Total Hours") {
+			return null;
+		} else {
+			return teamMembers.reduce((sum, member) => {
+				const hours = params.data[member.id] || 0;
+
+				const rateInfo = rateLevel.find(
+					(r) => r.code === member.rate_level_code
 				);
+				const rate = rateInfo ? rateInfo.rate : 0;
+				return sum + hours * rate;
+			}, 0);
+		}
+	};
 
-                const wbsActivityId = assignment?.wbs_activity_id
+	function prepareGridData() {
+		return WBSActivities.map((activity) => {
+			const assignments = WBSAssignments.filter(
+				(a) => a.wbs_activity_id === activity.id
+			);
+			const row: any = {
+				task: activity.task,
+				notes: activity.notes,
+			};
 
-				if (assignment) {
-					assignment.hours = Number(newValue) || 0;
-				} else {
-					// If no assignment exists, create a new one
-                    
-					data.WBSAssignment.push({
-						id: id,
-                        wbs_activity_id: wbsActivityId,
-						hours: Number(newValue) || 0,
-						rate: 0, // Set a default rate if needed
-					});
-				}
+			teamMembers.forEach((member) => {
+				const assignment = assignments.find(
+					(a) => a.team_member_id === member.id
+				);
+				row[member.id] = assignment ? assignment.hours : 0;
+			});
 
-				// Update totals
-				data.total_hours = (params: any) => calculateTotalHours(params);
-				data.total_dollars = (params: any) =>
-					calculateTotalDollars(params);
-
-				return true;
-			},
-			valueFormatter: (params: { value: number }) =>
-				params.value > 0 ? params.value.toFixed(2) : "",
-		})
-	);
-
-	// Horizontal Totals
-	const totalsColDefs: ColDef[] = [
-		{
-			field: "totalHours",
-			headerName: "Total Hours",
-			editable: false,
-			valueGetter: (params) => calculateTotalHours(params),
-
-			cellStyle: { fontWeight: "bold" },
-			valueFormatter: (params) => {
-				return params.value > 0 ? `${params.value.toFixed(2)}` : "";
-			},
-		},
-		{
-			field: "totalDollars",
-			headerName: "Total Dollars",
-			editable: false,
-			valueGetter: (params) => calculateTotalDollars(params),
-
-			cellStyle: { fontWeight: "bold" },
-			valueFormatter: (params) => {
-				return params.value > 0
-					? `$${formatDollars(params.value)}`
-					: "";
-			},
-		},
-	];
-
-	function calculateTotalHours(
-		params: ValueGetterParams<WBSActivityWithAssignments>
-	) {
-		const hours = params.node?.data?.WBSAssignment ?? [];
-		const totalHours = hours?.reduce(
-			(sum, row) => sum + (row.hours || 0),
-			0
-		);
-
-		return totalHours || 0;
+			row.total_hours = assignments.reduce((sum, a) => sum + a.hours, 0);
+			row.total_dollars = assignments.reduce(
+				(sum, a) => sum + a.hours * a.rate,
+				0
+			);
+			return row;
+		});
 	}
 
-	function calculateTotalDollars(
-		params: ValueGetterParams<WBSActivityWithAssignments>
-	) {
-		const hours = params.node?.data?.WBSAssignment;
-		console.log("hours:", hours);
-		const totalHours = hours?.reduce(
-			(sum, row) => sum + (row.hours || 0) * (row.rate || 0),
-			0
-		);
+	const [teamColumn, setTeamColumn] = useState<ColDef[]>(() => {
+		return teamMembers.map((member) => ({
+			headerName: member.rate_level_code,
+			field: member.id,
+			editable: true,
+			cellStyle: { textAlign: "center" },
+			valueParser: (params: ValueParserParams) => {
+				const newValue = params.newValue;
+				return typeof newValue === "string"
+					? newValue
+					: Number(newValue);
+			},
+			onCellValueChanged: (params) => {
+				const updatedRowData = [...rowData];
+				setRowData(updatedRowData);
+			},
+		}));
+	});
 
-		return totalHours || 0;
-	}
+	const [baseColumn, setBaseColumn] = useState<ColDef[]>(() => {
+		return [
+			{
+				headerName: "Task",
+				field: "task",
+				type: "text",
+				editable: true,
+				colSpan: (params: ColSpanParams) => {
+					if (params.node?.rowPinned) {
+						return 2;
+					}
+					return 1;
+				},
+				cellStyle: (params) => {
+					if (params.node.rowPinned) {
+						return {
+							textAlign: "right",
+						};
+					}
+					return null;
+				},
+			},
+			{
+				headerName: "Notes",
+				field: "notes",
+				type: "text",
+				editable: true,
+			},
+		];
+	});
 
-	const staticColumnDefs: ColDef[] = [
-		{
-			field: "task",
-			colId: "hi",
-			headerName: "Department Task",
-			width: 250,
-			editable: false,
+	const [totalsColumn, setTotalsColumn] = useState<ColDef[]>(() => {
+		return [
+			{
+				headerName: "Total Hours",
+				field: "total_hours",
+				editable: false,
+				cellStyle: { textAlign: "center" },
+				enableCellChangeFlash: true,
+				rowSpan: (params: RowSpanParams) => {
+					const rowIndex = params.node?.rowIndex;
+					const isPinnedRow = params.node?.rowPinned === "bottom";
+					if (rowIndex === 1 && isPinnedRow) {
+						return 2;
+					} else if (rowIndex === 0 && isPinnedRow) {
+						return 0;
+					}
+					return 1;
+				},
+				valueGetter: calcTotalHours,
+				valueFormatter: (params: ValueFormatterParams) => {
+					return params.value > 0 ? `${params.value.toFixed(2)}` : "";
+				},
+			},
+			{
+				headerName: "Total Dollars",
+				field: "total_dollars",
+				editable: false,
+				cellStyle: { textAlign: "center" },
+				enableCellChangeFlash: true,
+				rowSpan: (params: RowSpanParams) => {
+					const rowIndex = params.node?.rowIndex;
+					const isPinnedRow = params.node?.rowPinned === "bottom";
+
+					if (rowIndex === 1 && isPinnedRow) {
+						return 2;
+					} else if (rowIndex === 0 && isPinnedRow) {
+						return 0;
+					}
+					return 1;
+				},
+				valueGetter: calcTotalDollars,
+				valueFormatter: (params: ValueFormatterParams) => {
+					return params.value > 0 ? formatDollars(params.value) : "";
+				},
+			},
+		];
+	});
+
+	const columnDefs = useMemo(() => {
+		return [...baseColumn, ...teamColumn, ...totalsColumn];
+	}, [baseColumn, teamColumn, totalsColumn]);
+
+	// const [columnDefs, setColumnDefs] = useState(() => {
+	// 	const baseColumns: ColDef[] = [
+	// 		{
+	// 			headerName: "Task",
+	// 			field: "task",
+	// 			type: "text",
+	// 			editable: true,
+	// 			colSpan: (params: ColSpanParams) => {
+	// 				if (params.node?.rowPinned) {
+	// 					return 2;
+	// 				}
+	// 				return 1;
+	// 			},
+	// 			cellStyle: (params) => {
+	// 				if (params.node.rowPinned) {
+	// 					return {
+	// 						textAlign: "right",
+	// 					};
+	// 				}
+	// 				return null;
+	// 			},
+	// 		},
+	// 		{
+	// 			headerName: "Notes",
+	// 			field: "notes",
+	// 			type: "text",
+	// 			editable: true,
+	// 		},
+	// 	];
+
+	// 	const teamMemberColumns: ColDef[] = teamMembers.map((member) => ({
+	// 		headerName: member.rate_level_code,
+	// 		field: member.id,
+	// 		editable: true,
+	// 		cellStyle: { textAlign: "center" },
+	// 		valueParser: (params: ValueParserParams) => {
+	// 			const newValue = params.newValue;
+	// 			return typeof newValue === "string"
+	// 				? newValue
+	// 				: Number(newValue);
+	// 		},
+	// 		onCellValueChanged: (params) => {
+	// 			const updatedRowData = [...rowData];
+	// 			setRowData(updatedRowData);
+	// 		},
+	// 	}));
+
+	// 	const totalsColumns: ColDef[] = [
+	// 		{
+	// 			headerName: "Total Hours",
+	// 			field: "total_hours",
+	// 			editable: false,
+	// 			cellStyle: { textAlign: "center" },
+	// 			enableCellChangeFlash: true,
+	// 			rowSpan: (params: RowSpanParams) => {
+	// 				const rowIndex = params.node?.rowIndex;
+	// 				const isPinnedRow = params.node?.rowPinned === "bottom";
+	// 				if (rowIndex === 1 && isPinnedRow) {
+	// 					return 2;
+	// 				} else if (rowIndex === 0 && isPinnedRow) {
+	// 					return 0;
+	// 				}
+	// 				return 1;
+	// 			},
+	// 			valueGetter: calcTotalHours,
+	// 			valueFormatter: (params: ValueFormatterParams) => {
+	// 				return params.value > 0 ? `${params.value.toFixed(2)}` : "";
+	// 			},
+	// 		},
+	// 		{
+	// 			headerName: "Total Dollars",
+	// 			field: "total_dollars",
+	// 			editable: false,
+	// 			cellStyle: { textAlign: "center" },
+	// 			// cellStyle: (params) => {
+	// 			// 	const rowIndex = params.node?.rowIndex;
+	// 			// 	const isPinnedRow = params.node?.rowPinned === "bottom";
+	// 			// 	if (rowIndex === 0 && isPinnedRow) {
+	// 			// 		return {
+	// 			// 			display: "none",
+	// 			// 		};
+	// 			// 	}
+	// 			// },
+	// 			enableCellChangeFlash: true,
+	// 			rowSpan: (params: RowSpanParams) => {
+	// 				const rowIndex = params.node?.rowIndex;
+	// 				const isPinnedRow = params.node?.rowPinned === "bottom";
+
+	// 				if (rowIndex === 1 && isPinnedRow) {
+	// 					return 2;
+	// 				} else if (rowIndex === 0 && isPinnedRow) {
+	// 					return 0;
+	// 				}
+	// 				return 1;
+	// 			},
+	// 			valueGetter: calcTotalDollars,
+	// 			valueFormatter: (params: ValueFormatterParams) => {
+	// 				return params.value > 0 ? formatDollars(params.value) : "";
+	// 			},
+	// 		},
+	// 	];
+
+	// 	return [...baseColumns, ...teamMemberColumns, ...totalsColumns];
+	// });
+
+	// const columnDefs = useMemo(() => {
+	// 	const baseColumns: ColDef[] = [
+	// 		{
+	// 			headerName: "Task",
+	// 			field: "task",
+	// 			type: "text",
+	// 			editable: true,
+	// 			colSpan: (params: ColSpanParams) => {
+	// 				if (params.node?.rowPinned) {
+	// 					return 2;
+	// 				}
+	// 				return 1;
+	// 			},
+	// 			cellStyle: (params) => {
+	// 				if (params.node.rowPinned) {
+	// 					return {
+	// 						textAlign: "right",
+	// 					};
+	// 				}
+	// 				return null;
+	// 			},
+	// 		},
+	// 		{
+	// 			headerName: "Notes",
+	// 			field: "notes",
+	// 			type: "text",
+	// 			editable: true,
+	// 		},
+	// 	];
+
+	// 	const teamMemberColumns: ColDef[] = teamMembers.map((member) => ({
+	// 		headerName: member.rate_level_code,
+	// 		field: member.id,
+	// 		editable: true,
+	// 		cellStyle: { textAlign: "center" },
+	// 		valueParser: (params: ValueParserParams) => {
+	// 			const newValue = params.newValue;
+	// 			return typeof newValue === "string"
+	// 				? newValue
+	// 				: Number(newValue);
+	// 		},
+	// 		onCellValueChanged: (params) => {
+	// 			const updatedRowData = [...rowData];
+	// 			setRowData(updatedRowData);
+	// 		},
+	// 	}));
+
+	// 	console.log(teamMemberColumns)
+	// 	const totalsColumns: ColDef[] = [
+	// 		{
+	// 			headerName: "Total Hours",
+	// 			field: "total_hours",
+	// 			editable: false,
+	// 			cellStyle: { textAlign: "center" },
+	// 			enableCellChangeFlash: true,
+	// 			rowSpan: (params: RowSpanParams) => {
+	// 				const rowIndex = params.node?.rowIndex;
+	// 				const isPinnedRow = params.node?.rowPinned === "bottom";
+	// 				if (rowIndex === 1 && isPinnedRow) {
+	// 					return 2;
+	// 				} else if (rowIndex === 0 && isPinnedRow) {
+	// 					return 0;
+	// 				}
+	// 				return 1;
+	// 			},
+	// 			valueGetter: calcTotalHours,
+	// 			valueFormatter: (params: ValueFormatterParams) => {
+	// 				return params.value > 0 ? `${params.value.toFixed(2)}` : "";
+	// 			},
+	// 		},
+	// 		{
+	// 			headerName: "Total Dollars",
+	// 			field: "total_dollars",
+	// 			editable: false,
+	// 			cellStyle: { textAlign: "center" },
+	// 			// cellStyle: (params) => {
+	// 			// 	const rowIndex = params.node?.rowIndex;
+	// 			// 	const isPinnedRow = params.node?.rowPinned === "bottom";
+	// 			// 	if (rowIndex === 0 && isPinnedRow) {
+	// 			// 		return {
+	// 			// 			display: "none",
+	// 			// 		};
+	// 			// 	}
+	// 			// },
+	// 			enableCellChangeFlash: true,
+	// 			rowSpan: (params: RowSpanParams) => {
+	// 				const rowIndex = params.node?.rowIndex;
+	// 				const isPinnedRow = params.node?.rowPinned === "bottom";
+
+	// 				if (rowIndex === 1 && isPinnedRow) {
+	// 					return 2;
+	// 				} else if (rowIndex === 0 && isPinnedRow) {
+	// 					return 0;
+	// 				}
+	// 				return 1;
+	// 			},
+	// 			valueGetter: calcTotalDollars,
+	// 			valueFormatter: (params: ValueFormatterParams) => {
+	// 				return params.value > 0 ? formatDollars(params.value) : "";
+	// 			},
+	// 		},
+	// 	];
+
+	// 	return [...baseColumns, ...teamMemberColumns, ...totalsColumns];
+	// }, [teamMembers]);
+
+	const pinnedTotals: Record<string, number | string>[] = useMemo(() => {
+		const editableFields: string[] = columnDefs
+			.filter(
+				(col): col is { field: string } =>
+					col.editable === true &&
+					typeof col.field === "string" &&
+					col.type !== "text"
+			)
+			.map((col) => col.field);
+
+		const totals = editableFields.reduce((acc, field) => {
+			acc[field] = rowData.reduce((sum, row) => {
+				const value = Number(row[field] || 0);
+				return sum + value;
+			}, 0);
+
+			return acc;
+		}, {} as Record<string, number>);
+		const totalsArray = Object.entries(totals).map(([key, value]) => ({
+			key,
+			value: Number(value),
+		}));
+
+		const result = totalsArray.reduce((obj, item) => {
+			const rate = getRateByEmpId(item.key, teamMembers, rateLevel);
+			if (rate !== null) {
+				const product = item.value * rate;
+				obj[item.key] = product;
+			}
+			return obj;
+		}, {} as Record<string, number>);
+
+		return [
+			{
+				task: "Total Hours",
+				...totalsArray.reduce((acc, { key, value }) => {
+					acc[key] = value;
+					return acc;
+				}, {} as Record<string, number>),
+			},
+			{
+				task: "Total Dollars",
+				...Object.entries(result).reduce((acc, [key, value]) => {
+					acc[key] = formatDollars(value);
+					return acc;
+				}, {} as Record<string, string>),
+			},
+		];
+	}, [columnDefs, teamMembers, rateLevel, rowData]);
+
+	const gridOptions: GridOptions = {
+		theme: getTheme(theme),
+		rowData: rowData,
+		columnDefs: columnDefs,
+		defaultColDef: defaultColDef,
+		suppressRowTransform: true,
+		columnTypes: {
+			text: {
+				valueFormatter: (params: ValueFormatterParams) => {
+					return params.value ? String(params.value) : "";
+				},
+			},
 		},
+	};
 
-		{
-			field: "notes",
-			headerName: "Assumptions",
-			width: 150,
-			editable: false,
-		},
-	];
+	const handleMemberAdd = useCallback(() => {
+		const newMember = addTeamMember[0];
+		const newMemberColumn: ColDef = {
+			headerName: newMember.rate_level_code,
+			field: newMember.id,
+			editable: true,
+			cellStyle: { textAlign: "center" },
+			valueParser: (params: ValueParserParams) =>
+				Number(params.newValue) || 0,
+			onCellValueChanged: (params) => {
+				const updatedRowData = [...rowData];
+				setRowData(updatedRowData);
+			},
+		};
+		setTeamColumn((prev) => {
+			const updatedTeamColumns = [...prev, newMemberColumn];
+			const updatedColumnDefs = [
+				...baseColumn,
+				...updatedTeamColumns,
+				...totalsColumn,
+			];
+			gridRef.current!.api.setGridOption("columnDefs", updatedColumnDefs);
+			return updatedColumnDefs;
+		});
 
-	const [colDefs, setColDefs] = useState<ColDef[]>([
-		...staticColumnDefs,
-		...dynamicColDefs,
-		...totalsColDefs,
+		console.log(columnDefs);
+
+		// gridRef.current!.api.moveColumnByIndex(5, 3);
+
+		setTeamMembers((prev) => [...prev, newMember]);
+	}, [
+		addTeamMember,
+		baseColumn,
+		totalsColumn,
+		rowData,
+		setTeamColumn,
+		setTeamMembers,
 	]);
 
-	type TotalsRow = Record<string, any>;
-	const [totalsRow, setTotalsRow] = useState<TotalsRow[]>([]);
-
-	type WBSActivityWithAssignments = WBSActivity & {
-		WBSAssignment: WBSAssignment[];
-	} & { [key: `hours_${string}`]: number | undefined };
-
-	const updateTotalsRow = (
-		rowData: WBSActivityWithAssignments[],
-		colData: ColDef[]
-	) => {
-		const totalsRow: Record<string, any> = {
-			task: "Total",
-			notes: "Summary",
-			totalHours: 0,
-			totalDollars: 0,
-		};
-
-		colData.forEach((col) => {
-			if (col.field) {
-				// Ensure all fields from colDefs are initialized
-				if (!totalsRow[col.field]) {
-					totalsRow[col.field] = 0;
-				}
-			}
-		});
-
-		colData.forEach((col) => {
-			if (col.field?.startsWith("hours_")) {
-				const teamMemberId = col.field.split("_")[1];
-				const columnTotal = rowData.reduce((sum, row) => {
-					const assignment = row.WBSAssignment.find(
-						(assignment) =>
-							assignment.team_member_id === teamMemberId
-					);
-					return sum + (assignment?.hours || 0);
-				}, 0);
-
-				totalsRow[col.field] = columnTotal;
-				totalsRow.totalHours += columnTotal;
-
-				const rate =
-					rowData[0]?.WBSAssignment.find(
-						(assignment) =>
-							assignment.team_member_id === teamMemberId
-					)?.rate || 0;
-				totalsRow.totalDollars += columnTotal * rate;
-			}
-		});
-
-		setTotalsRow([totalsRow]);
-	};
-
-	useEffect(() => {
-		updateTotalsRow(rowData, colDefs);
-	}, [rowData]);
-
-	const handleCellValueChanged = (params: any) => {
-		const updatedRowData = [...rowData];
-		const rowIndex = updatedRowData.findIndex(
-			(row) => row.task === params.data.task
-		);
-
-		const balls = calculateTotalDollars(params);
-		const balls2 = calculateTotalHours(params);
-		console.log(balls, balls2);
-
-		if (rowIndex !== -1) {
-			updatedRowData[rowIndex] = {
-				...params.data,
-				total_hours: calculateTotalHours(params),
-				total_dollars: calculateTotalDollars(params),
-			};
+	const sizeToFit = useCallback(() => {
+		if (gridRef.current) {
+			gridRef.current.api.sizeColumnsToFit();
 		}
-
-		setRowData(updatedRowData);
-		updateTotalsRow(updatedRowData, colDefs);
-	};
+	}, [gridRef, columnDefs]);
 
 	return (
-		<div className="relative w-[1280px] h-[250px]">
-			<AgGridReact
-				theme={getTheme(theme)}
-				rowData={rowData}
-				columnDefs={colDefs}
-				defaultColDef={defaultColDef}
-				onCellValueChanged={handleCellValueChanged}
-				autoSizeStrategy={{ type: "fitCellContents" }}
-				// pinnedBottomRowData={totalsRow}
-			/>
-		</div>
+		<>
+			<div className="flex flex-col gap-2 w-full">
+				<div>
+					<Button onClick={handleMemberAdd}>Add team Member</Button>
+				</div>
+				<div style={containerStyle}>
+					<div style={gridStyle}>
+						<AgGridReact
+							gridId="grid"
+							ref={gridRef}
+							gridOptions={gridOptions}
+							// autoSizeStrategy={{ type: "fitCellContents" }}
+							enterNavigatesVertically={true}
+							enterNavigatesVerticallyAfterEdit={true}
+							pinnedBottomRowData={pinnedTotals}
+							onGridReady={sizeToFit}
+						/>
+					</div>
+				</div>
+			</div>
+		</>
 	);
 }

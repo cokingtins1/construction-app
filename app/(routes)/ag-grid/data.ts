@@ -195,6 +195,19 @@ export const teamMembers: TeamMember[] = [
 	},
 ];
 
+const addTeamMember: TeamMember[] = [
+	{
+		id: "02398fbf-61f6-65b8-4da8-fa2ad170cddc",
+		first_name: "Charlie",
+		last_name: "Lackmeyer",
+		middle_name: "D",
+		email: "clackmeyer@test.com",
+		department: "HVAC",
+		title: "Project Team Lead",
+		rate_level_code: "PTL",
+	},
+];
+
 export const rateLevel: RateLevel[] = [
 	{
 		id: "bc6bb6b3-0965-44ff-ba39-6b1dd8b8bfc2",
@@ -227,3 +240,11 @@ export const rateLevel: RateLevel[] = [
 		rate: 70,
 	},
 ];
+
+export const DB_DATA = {
+	teamMembers,
+	rateLevel,
+	WBSAssignments,
+	WBSActivities,
+	addTeamMember,
+};

@@ -1,6 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import type { ColDef, RowSelectionOptions } from "ag-grid-community";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+	ColDef,
+	RowSelectionOptions,
+	ValueParserParams,
+} from "ag-grid-community";
 import {
 	AllCommunityModule,
 	colorSchemeDarkBlue,
@@ -21,51 +25,103 @@ type IRow = {
 	electric: boolean;
 };
 
+function numberValueParser(params: ValueParserParams) {
+	return Number(params.newValue);
+}
+
+function formatNumber(number: number) {
+	return Math.floor(number).toLocaleString();
+}
+
+function createRowData() {
+	const rowData = [];
+	for (let i = 0; i < 20; i++) {
+		rowData.push({
+			a: Math.floor(((i + 323) * 25435) % 10000),
+			b: Math.floor(((i + 323) * 23221) % 10000),
+			c: Math.floor(((i + 323) * 468276) % 10000),
+			d: 0,
+		});
+	}
+	return rowData;
+}
+
 export default function GridExample() {
-	const { theme } = useTheme();
-
-	useEffect(() => {
-		fetch("https://www.ag-grid.com/example-assets/space-mission-data.json") // Fetch data from server
-			.then((result) => result.json()) // Convert to JSON
-			.then((rowData) => setRowData(rowData)); // Update state of `rowData`
-	}, []);
-
-	const [rowData, setRowData] = useState<IRow[]>([]);
-	const [colDefs, setColDefs] = useState<ColDef[]>([
-		{ field: "mission" },
-		{ field: "company" },
-		{ field: "location" },
-		{ field: "date" },
-		{ field: "price" },
-		{ field: "successful" },
-		{ field: "rocket" },
+	const gridRef = useRef<AgGridReact>(null);
+	const containerStyle = useMemo(
+		() => ({ width: "100%", height: "100%" }),
+		[]
+	);
+	const gridStyle = useMemo(() => ({ height: "100%", width: "100%" }), []);
+	const [rowData, setRowData] = useState<any[]>(createRowData());
+	const [columnDefs, setColumnDefs] = useState<ColDef[]>([
+		{
+			headerName: "Editable A",
+			field: "a",
+			editable: true,
+			valueParser: numberValueParser,
+		},
+		{
+			headerName: "Editable B",
+			field: "b",
+			editable: true,
+			valueParser: numberValueParser,
+		},
+		{
+			headerName: "API C",
+			field: "c",
+			minWidth: 135,
+			valueParser: numberValueParser,
+			cellRenderer: "agAnimateSlideCellRenderer",
+		},
+		{
+			headerName: "API D",
+			field: "d",
+			minWidth: 135,
+			valueParser: numberValueParser,
+			cellRenderer: "agAnimateSlideCellRenderer",
+		},
+		{
+			headerName: "Total",
+			valueGetter: "data.a + data.b + data.c + data.d",
+			minWidth: 135,
+			cellRenderer: "agAnimateSlideCellRenderer",
+		},
+		{
+			headerName: "Average",
+			valueGetter: "(data.a + data.b + data.c + data.d) / 4",
+			minWidth: 135,
+			cellRenderer: "agAnimateSlideCellRenderer",
+		},
 	]);
-
-	const defaultColDef: ColDef = {
-		flex: 1,
-		filter: true,
-		editable: true,
-	};
-
-	const rowSelection = useMemo<
-		RowSelectionOptions | "single" | "multiple"
-	>(() => {
-		return { mode: "multiRow" };
+	const defaultColDef = useMemo<ColDef>(() => {
+		return {
+			minWidth: 105,
+			flex: 1,
+			cellClass: "align-right",
+			valueFormatter: (params) => {
+				return formatNumber(params.value);
+			},
+		};
 	}, []);
 
-	// console.log(colDefs.map((row) => row. ))
+	const onUpdateSomeValues = useCallback(() => {
+		const rowCount = gridRef.current!.api.getDisplayedRowCount();
+		for (let i = 0; i < 10; i++) {
+			const row = Math.floor(Math.random() * rowCount);
+			const rowNode = gridRef.current!.api.getDisplayedRowAtIndex(row)!;
+			rowNode.setDataValue("c", Math.floor(Math.random() * 10000));
+			rowNode.setDataValue("d", Math.floor(Math.random() * 10000));
+		}
+	}, []);
 
 	return (
-		<div className="relative w-[1280px] h-full">
+		<div style={gridStyle}>
 			<AgGridReact
-				theme={getTheme(theme)}
+				ref={gridRef}
 				rowData={rowData}
-				columnDefs={colDefs}
+				columnDefs={columnDefs}
 				defaultColDef={defaultColDef}
-				rowSelection={rowSelection}
-				onCellValueChanged={() => server()}
-				onRowClicked={(event) => console.log("Custom Row ID:", event.node.id)}
-
 			/>
 		</div>
 	);

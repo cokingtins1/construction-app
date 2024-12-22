@@ -83,6 +83,9 @@ body {
 		@apply bg-background text-foreground;
 	}
 }
+.ag-header-cell-label {
+	justify-content: center;
+}
 
 /* .ag-cell {
 	border-right-color: var(--secondary-foreground);

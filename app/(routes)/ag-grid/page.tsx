@@ -1,5 +1,5 @@
 import DynamicWBS from "@/components/AG Grid/DynamicWBS";
-import DynamicWBS2 from "@/components/AG Grid/DynamicWBS2";
+import GenericWBS from "@/components/AG Grid/GenericWBS";
 import GridExample from "@/components/AG Grid/GridExample";
 import WBSGrid from "@/components/AG Grid/WBSGrid";
 import { ActivitiesWithAssignments } from "@/lib/types";
@@ -58,8 +58,14 @@ export default async function Page() {
 	// );
 
 	return (
-		<div className="flex justify-center h-[500px] w-full">
-			<DynamicWBS2 />
-		</div>
+		<>
+			<div className="flex flex-col gap-4">
+				<div className="flex justify-center h-[500px] w-full">
+					{/* <DynamicWBS /> */}
+					<GenericWBS />
+				</div>
+				<div className="flex justify-center h-[500px] w-full"></div>
+			</div>
+		</>
 	);
 }
