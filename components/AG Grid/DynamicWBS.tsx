@@ -27,7 +27,6 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { getTheme } from "@/lib/context/theme";
-import { useTheme } from "@/lib/context/theme-context";
 import {
 	convertCurrencyToNum,
 	formatDollars,
@@ -45,6 +44,7 @@ import { ActivitiesWithAssignments } from "@/lib/types";
 
 import { Button } from "../ui/button";
 import { DB_DATA } from "@/app/(routes)/ag-grid/data";
+import { useTheme } from "@/lib/context/theme-context";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
