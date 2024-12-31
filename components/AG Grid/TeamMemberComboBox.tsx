@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { baseId, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
 	Command,
@@ -30,11 +30,12 @@ export function TeamMemberComboBox(props: TeamMemberComboBoxProps) {
 	const { teamMembers, currentMemberId, onValueChange } = props;
 
 	const uniqueTeamMembers = teamMembers.filter(
-		(item, index, self) => index === self.findIndex((m) => m.id === item.id)
+		(item, index, self) =>
+			index === self.findIndex((m) => baseId(m.id) === baseId(item.id))
 	);
 
 	const [open, setOpen] = React.useState(false);
-	const [value, setValue] = React.useState(currentMemberId);
+	// const [value, setValue] = React.useState(currentMemberId);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -45,8 +46,9 @@ export function TeamMemberComboBox(props: TeamMemberComboBoxProps) {
 					aria-expanded={open}
 					className="w-full justify-between truncate"
 				>
-					{uniqueTeamMembers.find((mem) => mem.id === value)
-						?.last_name || "Select team member..."}
+					{uniqueTeamMembers.find(
+						(mem) => baseId(mem.id) === baseId(currentMemberId)
+					)?.last_name || "Select team member..."}
 					<ChevronsUpDown className="opacity-50" />
 				</Button>
 			</PopoverTrigger>
@@ -64,7 +66,7 @@ export function TeamMemberComboBox(props: TeamMemberComboBoxProps) {
 									key={mem.id}
 									value={mem.last_name}
 									onSelect={() => {
-										setValue(mem.id);
+										// setValue(mem.id);
 										onValueChange?.(mem.id);
 										setOpen(false);
 									}}
@@ -73,7 +75,8 @@ export function TeamMemberComboBox(props: TeamMemberComboBoxProps) {
 									<Check
 										className={cn(
 											"ml-auto",
-											value === mem.id
+											baseId(currentMemberId) ===
+												baseId(mem.id)
 												? "opacity-100"
 												: "opacity-0"
 										)}

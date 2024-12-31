@@ -1,7 +1,7 @@
 import { TeamMember } from "@prisma/client";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { TeamMemberComboBox } from "./TeamMemberComboBox";
-import { Underline } from "lucide-react";
+import { baseId } from "@/lib/utils";
 
 type TeamMemberHeaderProps = {
 	teamMembers: TeamMember[];
@@ -11,9 +11,17 @@ type TeamMemberHeaderProps = {
 export default function TeamMemberHeader(props: TeamMemberHeaderProps) {
 	const { teamMembers, currentMemberId, onTeamMemberChange } = props;
 
-	const [currentMember, setCurrentMember] = useState(
-		teamMembers?.find((m) => m.id === currentMemberId)
+	const findTeamMember = (id: string) => {
+		return teamMembers.find((m) => m.id === baseId(id));
+	};
+
+	const [currentMember, setCurrentMember] = useState(() =>
+		findTeamMember(currentMemberId)
 	);
+
+	useEffect(() => {
+		setCurrentMember(findTeamMember(currentMemberId));
+	}, [currentMemberId]);
 
 	return (
 		<>
@@ -22,10 +30,8 @@ export default function TeamMemberHeader(props: TeamMemberHeaderProps) {
 					teamMembers={teamMembers}
 					currentMemberId={currentMemberId}
 					onValueChange={(newId) => {
-						onTeamMemberChange(currentMember.id, newId);
-						setCurrentMember(
-							teamMembers.find((m) => m.id === newId)
-						);
+						onTeamMemberChange(currentMemberId, newId);
+						setCurrentMember(() => findTeamMember(newId));
 					}}
 				/>
 			) : (

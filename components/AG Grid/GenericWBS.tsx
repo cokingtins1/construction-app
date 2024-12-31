@@ -35,6 +35,7 @@ import {
 import { AgGridReact, CustomCellRendererProps } from "ag-grid-react";
 import { getTheme } from "@/lib/context/theme";
 import {
+	// baseId,
 	convertCurrencyToNum,
 	formatDollars,
 	getRateByEmpId,
@@ -55,6 +56,10 @@ import CustomHeader from "./TeamMemberHeader";
 import TeamMemberHeader from "./TeamMemberHeader";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
+
+function baseId(id: string | undefined) {
+	return id?.split("_")[0];
+}
 
 export default function GenericWBS() {
 	const { theme } = useTheme();
@@ -113,36 +118,6 @@ export default function GenericWBS() {
 	const [rowData, setRowData] = useState(() =>
 		prepareGridData(WBSActivities, assignments)
 	);
-	// function prepareGridData(
-	// 	row_data: WBSActivity[],
-	// 	col_data: WBSAssignment[]
-	// ) {
-	// 	return row_data.map((activity) => {
-	// 		const assignments = col_data.filter(
-	// 			(a) => a.wbs_activity_id === activity.id
-	// 		);
-	// 		const row: any = {
-	// 			id: activity.id,
-	// 			task: activity.task,
-	// 			notes: activity.notes,
-	// 		};
-
-	// 		teamMembers.forEach((member) => {
-	// 			const assignment = assignments.find(
-	// 				(a) => a.team_member_id === member.id
-	// 			);
-	// 			row[member.id] = assignment ? assignment.hours : 0;
-	// 		});
-
-	// 		row.total_hours = assignments.reduce((sum, a) => sum + a.hours, 0);
-	// 		row.total_dollars = assignments.reduce(
-	// 			(sum, a) => sum + a.hours * a.rate,
-	// 			0
-	// 		);
-	// 		console.log("row:", row);
-	// 		return row;
-	// 	});
-	// }
 
 	function prepareGridData(
 		row_data: WBSActivity[],
@@ -181,6 +156,8 @@ export default function GenericWBS() {
 				new Map<string, WBSAssignment[]>()
 			);
 
+			console.log("Before assigning values:", row);
+
 			// Process each team member's assignments
 			memberToColIds.forEach((colIds, memberId) => {
 				const memberAssignments =
@@ -192,6 +169,8 @@ export default function GenericWBS() {
 					row[colId] = assignment ? assignment.hours : 0;
 				});
 			});
+
+			console.log("After assigning values:", row);
 
 			// Calculate totals
 			row.total_hours = activityAssignments.reduce(
@@ -208,7 +187,9 @@ export default function GenericWBS() {
 
 	const getMemberName = useCallback(
 		(currentMembers: TeamMember[], newMemberId: string | undefined) => {
-			return currentMembers.find((m) => m.id === newMemberId)?.last_name;
+			return currentMembers.find(
+				(m) => baseId(m.id) === baseId(newMemberId)
+			)?.last_name;
 		},
 		[teamMembers]
 	);
@@ -217,89 +198,86 @@ export default function GenericWBS() {
 		oldMemberId: string,
 		newMemberId: string
 	) => {
-		if (gridRef.current) {
-			const currentCols: ColDef[] | undefined =
-				gridRef.current.api.getColumnDefs();
+		if (!gridRef.current) return;
 
-			if (!currentCols) return;
+		const currentCols: ColDef[] | undefined =
+			gridRef.current.api.getColumnDefs();
+		if (!currentCols) return;
 
-			// Column that is changing:
-			const columnIndex = currentCols.findIndex((col) =>
-				col.colId?.startsWith(oldMemberId)
-			);
-			const currentColId = currentCols[columnIndex].colId;
-			if (columnIndex === -1 || !currentColId) return;
+		// Find the exact column that's changing using both the base ID and any potential suffix
+		const columnIndex = currentCols.findIndex(
+			(col) => col.colId === oldMemberId
+		);
 
-			console.log(
-				columnIndex,
-				getMemberName(teamMembers, currentColId as string)
-			);
+		if (columnIndex === -1) return;
 
-			// console.log(
-			// 	"newMemberId:",
-			// 	getMemberName(teamMembers, newMemberId),
-			// 	"currentColId:",
-			// 	getMemberName(teamMembers, currentColId as string)
-			// );
+		// Get existing columns with the new member ID
+		const existingColumns = currentCols.filter(
+			(col) => baseId(col.field) === baseId(newMemberId)
+		);
 
-			const existingColumns = currentCols.filter(
-				(col) =>
-					col.field === newMemberId ||
-					col.field?.startsWith(`${newMemberId}_`)
-			);
+		// 		console.log(
+		// 	"newMemberId:",
+		// 	getMemberName(teamMembers, newMemberId),
+		// 	"currentColId:",
+		// 	getMemberName(teamMembers, currentColId as string)
+		// );
 
-			let newField = newMemberId;
-			const uniqueSuffix =
-				existingColumns.length > 0 ? `_${existingColumns.length}` : "";
-			newField += uniqueSuffix;
-
-			const newTeamMember = DB_DATA.teamMembers.find(
-				(tm) => tm.id === newMemberId
-			);
-			if (!newTeamMember) return;
-
-			// Update teamMembers array to reflect the change
-			setTeamMembers((prevTeamMembers) => {
-				const updatedTeamMembers = [...prevTeamMembers];
-				const memberIndex = updatedTeamMembers.findIndex(
-					(tm) => tm.id === oldMemberId
-				);
-				if (memberIndex !== -1) {
-					updatedTeamMembers[memberIndex] = newTeamMember;
-				}
-				return updatedTeamMembers;
-			});
-
-			const updatedColumns = currentCols.map((col, index) => {
-				if (index !== columnIndex) return col;
-
-				return {
-					...col,
-					field: newMemberId,
-					colId: newField,
-					headerComponentParams: {
-						...col.headerComponentParams,
-						currentMemberId: newMemberId,
-					},
-				};
-			});
-
-			// console.log("rowData:", rowData);
-
-			setRowData((prevRowData) => {
-				return prevRowData.map((row) => {
-					const newRow = { ...row };
-
-					if (!(newField in newRow)) {
-						newRow[newField] = 0;
-					}
-
-					return newRow;
-				});
-			});
-
-			gridRef.current.api.setGridOption("columnDefs", updatedColumns);
+		// Create new unique identifier
+		let newField = newMemberId;
+		if (existingColumns.length > 0) {
+			// Find the highest existing suffix number
+			const maxSuffix = existingColumns.reduce((max, col) => {
+				const suffix = col.field?.split("_")[1];
+				return suffix ? Math.max(max, parseInt(suffix)) : 0;
+			}, 0);
+			newField = `${newMemberId}_${maxSuffix + 1}`;
 		}
+
+		const newTeamMember = DB_DATA.teamMembers.find(
+			(m) => m.id === baseId(newMemberId)
+		);
+		if (!newTeamMember) return;
+
+		setTeamMembers((prevTeamMembers) => {
+			return prevTeamMembers.map((member, idx) => {
+				if (member.id === oldMemberId) {
+					return {
+						...DB_DATA.teamMembers.find(
+							(m) => m.id === baseId(newMemberId)
+						)!,
+						id: newField,
+					};
+				}
+				return member;
+			});
+		});
+
+		// Update columns
+		const updatedColumns = currentCols.map((col, index) => {
+			if (index !== columnIndex) return col;
+
+			return {
+				...col,
+				field: newField,
+				colId: newField,
+				headerComponentParams: {
+					...col.headerComponentParams,
+					currentMemberId: newField,
+				},
+			};
+		});
+
+		setRowData((prevRowData) => {
+			return prevRowData.map((row) => {
+				const newRow = { ...row };
+				newRow[newField] = row[oldMemberId] || 0;
+				delete newRow[oldMemberId];
+				return newRow;
+			});
+		});
+
+		gridRef.current.api.setGridOption("columnDefs", updatedColumns);
 	};
 
 	const createTeamMemberCol = (teamMembers: TeamMember[]): ColDef[] => {
@@ -324,11 +302,13 @@ export default function GenericWBS() {
 						: Number(newValue);
 				},
 				valueFormatter: (params: ValueFormatterParams) => {
+					// console.log("params.value:", params.value);
 					return params.value === 0 ? "" : params.value;
 				},
 				onCellValueChanged: (params: NewValueParams) => {
 					const fieldName = params.column.getColId();
 					const newValue = Number(params.newValue) || 0;
+
 					setRowData((prevData) => {
 						return prevData.map((row) => {
 							if (row.id === params.data.id) {
@@ -350,46 +330,17 @@ export default function GenericWBS() {
 
 		const teamMemberFields = Object.keys(params.data).filter((key) => {
 			// Remove any _1, _2 suffixes to get the base member ID
-			const baseId = key.split("_")[0];
-			return teamMembers.some((member) => member.id === baseId);
+			// const baseId = key.split("_")[0];
+			return teamMembers.some((member) => member.id === key);
 		});
 
 		return teamMemberFields.reduce((sum, field) => {
 			if (field === "232ab19b-9b76-6c77-b62e-6735178a9c7c_1") {
-				console.log("hours:", params.data[field]);
+				// console.log("hours:", params.data[field]);
 			}
 			return sum + (Number(params.data[field]) || 0);
 		}, 0);
-		// return teamMembers.reduce((sum, member) => {
-		// 	const baseId = member.id.split("_")[0];
-		// 	// console.log(teamMembers.find((m) => m.id === baseId)?.last_name);
-		// 	return sum + (Number(params.data[baseId]) || 0);
-		// }, 0);
 	};
-
-	// const calcTotalDollars = (params: ValueGetterParams) => {
-	// 	if (params.data.task === "Total Dollars") {
-	// 		return Object.entries(params.data as Record<string, string>).reduce(
-	// 			(sum, [key, value]) => {
-	// 				return sum + convertCurrencyToNum(value);
-	// 			},
-	// 			0
-	// 		);
-	// 	} else if (params.data.task === "Total Hours") {
-	// 		return null;
-	// 	} else {
-	// 		return teamMembers.reduce((sum, member) => {
-	// 			const baseId = member.id.split("_")[0];
-	// 			const hours = params.data[baseId] || 0;
-
-	// 			const rateInfo = rateLevel.find(
-	// 				(r) => r.code === member.rate_level_code
-	// 			);
-	// 			const rate = rateInfo ? rateInfo.rate : 0;
-	// 			return sum + hours * rate;
-	// 		}, 0);
-	// 	}
-	// };
 
 	const calcTotalDollars = useCallback(
 		(params: ValueGetterParams) => {
@@ -406,11 +357,7 @@ export default function GenericWBS() {
 				// Get all data fields that correspond to team member columns
 				const teamMemberFields = Object.keys(params.data).filter(
 					(key) => {
-						// Remove any _1, _2 suffixes to get the base member ID
-						const baseId = key.split("_")[0];
-						return teamMembers.some(
-							(member) => member.id === baseId
-						);
+						return teamMembers.some((member) => member.id === key);
 					}
 				);
 
@@ -495,31 +442,6 @@ export default function GenericWBS() {
 		return [...baseColumns, ...teamColumns, ...totalsColumns];
 	}, [teamMembers, calcTotalHours, calcTotalDollars, rowData]);
 
-	// const pinnedTotals = useMemo(() => {
-	// 	const hoursTotals = teamMembers.reduce((acc, member) => {
-	// 		acc[member.id] = rowData.reduce(
-	// 			(sum, row) => sum + (Number(row[member.id]) || 0),
-	// 			0
-	// 		);
-	// 		return acc;
-	// 	}, {} as Record<string, number>);
-
-	// 	const dollarTotals = teamMembers.reduce((acc, member) => {
-	// 		const memberRate =
-	// 			rateLevel.find((r) => r.code === member.rate_level_code)
-	// 				?.rate || 0;
-	// 		const hours = hoursTotals[member.id];
-
-	// 		acc[member.id] = formatDollars(hours * memberRate);
-	// 		return acc;
-	// 	}, {} as Record<string, string>);
-
-	// 	return [
-	// 		{ task: "Total Hours", ...hoursTotals },
-	// 		{ task: "Total Dollars", ...dollarTotals },
-	// 	];
-	// }, [rowData, teamMembers, rateLevel, assignments]);
-
 	const pinnedTotals = useMemo(() => {
 		// Create a mapping of member positions to their column IDs
 		const memberColumns = teamMembers.map((member, index) => ({
@@ -527,6 +449,11 @@ export default function GenericWBS() {
 			member,
 		}));
 
+		console.log(
+			"memberColumns:",
+			memberColumns.map((m) => m.member.last_name)
+		);
+		console.log("rowData:", rowData);
 		// Calculate hours totals for each column
 		const hoursTotals = memberColumns.reduce((acc, { colId }) => {
 			acc[colId] = rowData.reduce(
@@ -567,6 +494,21 @@ export default function GenericWBS() {
 		},
 	};
 
+	const returnCols = (colArr: ColDef[]) => {
+		console.log(
+			colArr
+				.map((col) => {
+					const name = getMemberName(teamMembers, col.field);
+					return {
+						name: name,
+						field: col.field,
+						colId: col.colId,
+					};
+				})
+				.slice(2, colArr.length - 2)
+		);
+	};
+
 	const getColDefs = () => {
 		if (gridRef.current) {
 			const currentCols: ColDef[] | undefined =
@@ -574,24 +516,14 @@ export default function GenericWBS() {
 
 			if (!currentCols) return;
 
-			console.log(
-				currentCols
-					.map((col) => {
-						const name = getMemberName(teamMembers, col.field);
-						return {
-							name: name,
-							field: col.field,
-							colId: col.colId,
-						};
-					})
-					.slice(2, currentCols.length - 2)
-			);
+			console.log("currentCols:", returnCols(currentCols));
+			console.log("rowData:", rowData);
+			console.log("pinnedTotals:", pinnedTotals);
 		}
 	};
 
 	const handleAddTeamMember = useCallback(() => {
 		const newMember = addTeamMember[0];
-		console.log(newMember);
 		const updatedTeamMembers = [...teamMembers, newMember];
 
 		setRowData((currentRows) =>
@@ -642,7 +574,7 @@ export default function GenericWBS() {
 			const newAssignment: WBSAssignment[] = teamMembers.map((mem) => {
 				return {
 					id: newRowId,
-					wbs_activity_id: "0248fefa-5683-4657-b8cc-ba8c03415857",
+					wbs_activity_id: newRowId,
 					team_member_id: mem.id,
 					hours: 0,
 					rate: getRateByEmpId(mem.id, teamMembers, rateLevel),
