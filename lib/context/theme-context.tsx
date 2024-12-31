@@ -20,34 +20,34 @@ export default function ThemeContextProvider({
 }: ThemeContextProviderProps) {
 	const [theme, setTheme] = useState<Theme>("light");
 
-	const toggleTheme = () => {
-		if (theme === "light") {
-			setTheme("dark");
-			window.localStorage.setItem("theme", "dark");
+	const updateTheme = (newTheme: Theme) => {
+		setTheme(newTheme);
+		window.localStorage.setItem("theme", newTheme);
+
+		if (newTheme === "dark") {
 			document.documentElement.classList.add("dark");
-			document.body.dataset.agThemeMode = "dark";
 		} else {
-			setTheme("light");
-			window.localStorage.setItem("theme", "light");
 			document.documentElement.classList.remove("dark");
-			document.body.dataset.agThemeMode = "light";
 		}
+
+		document.body.dataset.agThemeMode = newTheme;
+	};
+
+	const toggleTheme = () => {
+		const newTheme = theme === "light" ? "dark" : "light";
+		updateTheme(newTheme);
 	};
 
 	useEffect(() => {
 		const localTheme = window.localStorage.getItem("theme") as Theme | null;
 
 		if (localTheme) {
-			setTheme(localTheme);
-
-			if (localTheme === "dark") {
-				document.documentElement.classList.add("dark");
-				document.body.dataset.agThemeMode = "dark";
-			}
+			updateTheme(localTheme);
 		} else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-			setTheme("dark");
-			document.documentElement.classList.add("dark");
+			updateTheme("dark");
 			document.body.dataset.agThemeMode = "dark";
+		} else {
+			updateTheme("light");
 		}
 	}, []);
 

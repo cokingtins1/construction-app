@@ -26,12 +26,14 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang="en">
+		<html lang="en" className="dark">
 			<ThemeContextProvider>
 				<body
-					className={`${geistSans.variable} ${geistMono.variable} antialiased  p-4 bg-gray-50 text-gray-950 pt-4 sm:pt-12 dark:bg-gray-900 dark:text-gray-50 dark:text-opacity-90 mx-auto max-w-[1440px] pb-[10px] min-h-full relative`}
+					className={`${geistSans.variable} ${geistMono.variable} antialiase bg-gray-50 text-gray-950 dark:bg-gray-900 dark:text-opacity-90 dark:text-gray-50 min-h-screen`}
 				>
-					{children}
+					<main className="p-4 pt-4 sm:pt-12 max-w-[1920px] mx-auto pb-[10px]">
+						{children}
+					</main>
 					<ThemeSwitch />
 				</body>
 			</ThemeContextProvider>

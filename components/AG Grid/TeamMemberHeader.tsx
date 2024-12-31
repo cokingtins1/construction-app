@@ -1,15 +1,21 @@
 import { TeamMember } from "@prisma/client";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { RefObject, useCallback, useEffect, useState } from "react";
 import { TeamMemberComboBox } from "./TeamMemberComboBox";
 import { baseId } from "@/lib/utils";
+import { AgGridReact } from "ag-grid-react";
 
 type TeamMemberHeaderProps = {
 	teamMembers: TeamMember[];
 	currentMemberId: string;
-	onTeamMemberChange: (oldMemberId: string, newMemberId: string) => void;
+	gridRef: RefObject<AgGridReact<any>>;
+	onTeamMemberChange: (
+		oldMemberId: string,
+		newMemberId: string,
+		rowData: any[]
+	) => void;
 };
 export default function TeamMemberHeader(props: TeamMemberHeaderProps) {
-	const { teamMembers, currentMemberId, onTeamMemberChange } = props;
+	const { teamMembers, currentMemberId, onTeamMemberChange, gridRef } = props;
 
 	const findTeamMember = (id: string) => {
 		return teamMembers.find((m) => m.id === baseId(id));
@@ -23,6 +29,12 @@ export default function TeamMemberHeader(props: TeamMemberHeaderProps) {
 		setCurrentMember(findTeamMember(currentMemberId));
 	}, [currentMemberId]);
 
+	function getAllRows() {
+		let rowData: any[] = [];
+		gridRef.current?.api.forEachNode((node) => rowData.push(node.data));
+		return rowData;
+	}
+
 	return (
 		<>
 			{currentMember ? (
@@ -30,7 +42,8 @@ export default function TeamMemberHeader(props: TeamMemberHeaderProps) {
 					teamMembers={teamMembers}
 					currentMemberId={currentMemberId}
 					onValueChange={(newId) => {
-						onTeamMemberChange(currentMemberId, newId);
+						const allRows = getAllRows();
+						onTeamMemberChange(currentMemberId, newId, allRows);
 						setCurrentMember(() => findTeamMember(newId));
 					}}
 				/>

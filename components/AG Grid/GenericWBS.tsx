@@ -18,6 +18,7 @@ import type {
 	ICellRendererParams,
 	NavigateToNextCellParams,
 	NewValueParams,
+	RowNode,
 	RowSpanParams,
 	SuppressKeyboardEventParams,
 	TabToNextCellParams,
@@ -25,6 +26,7 @@ import type {
 	ValueFormatterParams,
 	ValueGetterParams,
 	ValueParserParams,
+	ValueSetterParams,
 } from "ag-grid-community";
 import {
 	AllCommunityModule,
@@ -156,8 +158,6 @@ export default function GenericWBS() {
 				new Map<string, WBSAssignment[]>()
 			);
 
-			console.log("Before assigning values:", row);
-
 			// Process each team member's assignments
 			memberToColIds.forEach((colIds, memberId) => {
 				const memberAssignments =
@@ -169,8 +169,6 @@ export default function GenericWBS() {
 					row[colId] = assignment ? assignment.hours : 0;
 				});
 			});
-
-			console.log("After assigning values:", row);
 
 			// Calculate totals
 			row.total_hours = activityAssignments.reduce(
@@ -196,7 +194,8 @@ export default function GenericWBS() {
 
 	const handleTeamMemberChange = (
 		oldMemberId: string,
-		newMemberId: string
+		newMemberId: string,
+		rowData: any[]
 	) => {
 		if (!gridRef.current) return;
 
@@ -216,13 +215,6 @@ export default function GenericWBS() {
 			(col) => baseId(col.field) === baseId(newMemberId)
 		);
 
-		// 		console.log(
-		// 	"newMemberId:",
-		// 	getMemberName(teamMembers, newMemberId),
-		// 	"currentColId:",
-		// 	getMemberName(teamMembers, currentColId as string)
-		// );
-
 		// Create new unique identifier
 		let newField = newMemberId;
 		if (existingColumns.length > 0) {
@@ -239,6 +231,50 @@ export default function GenericWBS() {
 		);
 		if (!newTeamMember) return;
 
+		// Update columns
+		const updatedColumns = currentCols.map((col, index) => {
+			if (index !== columnIndex) return col;
+
+			return {
+				...col,
+				field: newField,
+				colId: newField,
+				headerComponentParams: {
+					...col.headerComponentParams,
+					currentMemberId: newField,
+					rowData,
+				},
+			};
+		});
+
+		// setRowData((prevRowData) => {
+		// 	return prevRowData.map((row) => {
+		// 		const newRow = { ...row };
+		// 		newRow[newField] = row[oldMemberId] || 0;
+		// 		delete newRow[oldMemberId];
+		// 		return newRow;
+		// 	});
+		// });
+
+		console.log("rowData before update:", Object.values(rowData));
+
+		const updatedRowData = rowData.map((row) => {
+			const newRow = { ...row };
+			// console.log("oldMemberId:", oldMemberId);
+			// console.log("row:", row);
+			// console.log(row[oldMemberId]);
+			newRow[newField] = row[oldMemberId] || 0;
+			delete newRow[oldMemberId];
+			return newRow;
+		});
+		setRowData(updatedRowData);
+
+		console.log("rowData AFTER update:", updatedRowData);
+		// console.log("updatedColumns:", updatedColumns); // good
+
+		gridRef.current.api.setGridOption("rowData", updatedRowData);
+		gridRef.current.api.setGridOption("columnDefs", updatedColumns); // good
+
 		setTeamMembers((prevTeamMembers) => {
 			return prevTeamMembers.map((member, idx) => {
 				if (member.id === oldMemberId) {
@@ -252,32 +288,6 @@ export default function GenericWBS() {
 				return member;
 			});
 		});
-
-		// Update columns
-		const updatedColumns = currentCols.map((col, index) => {
-			if (index !== columnIndex) return col;
-
-			return {
-				...col,
-				field: newField,
-				colId: newField,
-				headerComponentParams: {
-					...col.headerComponentParams,
-					currentMemberId: newField,
-				},
-			};
-		});
-
-		setRowData((prevRowData) => {
-			return prevRowData.map((row) => {
-				const newRow = { ...row };
-				newRow[newField] = row[oldMemberId] || 0;
-				delete newRow[oldMemberId];
-				return newRow;
-			});
-		});
-
-		gridRef.current.api.setGridOption("columnDefs", updatedColumns);
 	};
 
 	const createTeamMemberCol = (teamMembers: TeamMember[]): ColDef[] => {
@@ -291,19 +301,36 @@ export default function GenericWBS() {
 					teamMembers,
 					currentMemberId: member.id,
 					onTeamMemberChange: handleTeamMemberChange,
+					gridRef,
 				},
 				cellEditor: "agNumberCellEditor",
 				editable: true,
 				cellStyle: { textAlign: "center" },
+				valueGetter: (params: ValueGetterParams) => {
+					// // params.column.getColId() ===
+					// // 	"86734044-2506-0262-10c7-d9e3b3023f4c_1" &&
+					// if (params.data[params.column.getColId()] === undefined) {
+					// 	console.log("rowData in valueGetter:", rowData);
+					// 	console.log("Full row data:", params.data);
+					// 	console.log("Column ID:", params.column.getColId());
+					// 	console.log(
+					// 		"Value:",
+					// 		params.data[params.column.getColId()]
+					// 	);
+					// }
+					return params.data[params.column.getColId()] || 0;
+				},
 				valueParser: (params: ValueParserParams) => {
 					const newValue = params.newValue;
 					return typeof newValue === "string"
-						? newValue
+						? parseFloat(newValue)
 						: Number(newValue);
 				},
 				valueFormatter: (params: ValueFormatterParams) => {
-					// console.log("params.value:", params.value);
-					return params.value === 0 ? "" : params.value;
+					const value = params.value;
+					return value === 0 || value === undefined
+						? ""
+						: value.toString();
 				},
 				onCellValueChanged: (params: NewValueParams) => {
 					const fieldName = params.column.getColId();
@@ -328,18 +355,17 @@ export default function GenericWBS() {
 	const calcTotalHours = (params: ValueGetterParams) => {
 		if (params.data.task === "Total Dollars") return null;
 
-		const teamMemberFields = Object.keys(params.data).filter((key) => {
-			// Remove any _1, _2 suffixes to get the base member ID
-			// const baseId = key.split("_")[0];
-			return teamMembers.some((member) => member.id === key);
-		});
+		const teamMemberColumns = gridRef.current?.api
+			.getAllGridColumns()
+			.filter(
+				(col) => col.getColDef().headerComponent === TeamMemberHeader
+			)
+			.map((col) => col.getColId());
 
-		return teamMemberFields.reduce((sum, field) => {
-			if (field === "232ab19b-9b76-6c77-b62e-6735178a9c7c_1") {
-				// console.log("hours:", params.data[field]);
-			}
-			return sum + (Number(params.data[field]) || 0);
-		}, 0);
+		return teamMemberColumns?.reduce(
+			(sum, field) => sum + (Number(params.data[field]) || 0),
+			0
+		);
 	};
 
 	const calcTotalDollars = useCallback(
@@ -351,34 +377,35 @@ export default function GenericWBS() {
 					(sum, [key, value]) => sum + convertCurrencyToNum(value),
 					0
 				);
-			} else if (params.data.task === "Total Hours") {
-				return null;
-			} else {
-				// Get all data fields that correspond to team member columns
-				const teamMemberFields = Object.keys(params.data).filter(
-					(key) => {
-						return teamMembers.some((member) => member.id === key);
-					}
-				);
+			}
 
-				return teamMemberFields.reduce((sum, field) => {
-					const hours = Number(params.data[field]) || 0;
-					// Get base member ID without any suffix
-					const baseMemberId = field.split("_")[0];
-					const member = teamMembers.find(
-						(m) => m.id === baseMemberId
+			if (params.data.task === "Total Hours") return null;
+
+			const teamMemberColumns = gridRef.current?.api
+				.getAllGridColumns()
+				.filter(
+					(col) =>
+						col.getColDef().headerComponent === TeamMemberHeader
+				)
+				.map((col) => {
+					const colId = col.getColId();
+					const member = DB_DATA.teamMembers.find(
+						(m) => m.id === baseId(colId)
 					);
-					const rateInfo = member
+					const rate = member
 						? rateLevel.find(
 								(r) => r.code === member.rate_level_code
-						  )
-						: null;
-					const rate = rateInfo ? rateInfo.rate : 0;
-					return sum + hours * rate;
-				}, 0);
-			}
+						  )?.rate || 0
+						: 0;
+					return { colId, rate };
+				});
+
+			return teamMemberColumns?.reduce((sum, { colId, rate }) => {
+				const hours = Number(params.data[colId]) || 0;
+				return sum + hours * rate;
+			}, 0);
 		},
-		[teamMembers, rateLevel]
+		[rateLevel]
 	);
 
 	const columnDefs = useMemo(() => {
@@ -449,11 +476,11 @@ export default function GenericWBS() {
 			member,
 		}));
 
-		console.log(
-			"memberColumns:",
-			memberColumns.map((m) => m.member.last_name)
-		);
-		console.log("rowData:", rowData);
+		// console.log(
+		// 	"memberColumns:",
+		// 	memberColumns.map((m) => m.member.last_name)
+		// );
+		// console.log("rowData in pinnedTotals:", rowData);
 		// Calculate hours totals for each column
 		const hoursTotals = memberColumns.reduce((acc, { colId }) => {
 			acc[colId] = rowData.reduce(

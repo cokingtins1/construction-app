@@ -9,7 +9,7 @@ import {
 	themeQuartz,
 	themeAlpine,
 } from "ag-grid-community";
-import { Theme, useTheme } from "./theme-context";
+import { Theme } from './theme-context';
 
 ModuleRegistry.registerModules([
 	TextFilterModule,

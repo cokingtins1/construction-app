@@ -31,18 +31,22 @@ export function getRateByEmpId(
 	empId: string,
 	teamMembers: TeamMember[],
 	rateLevel: RateLevel[]
-): number | null {
+): number {
 	const teamMember = teamMembers.find((mem) => mem.id === empId);
 
-	if (!teamMember) return null;
+	if (!teamMember) return 0;
 
 	const rateInfo = rateLevel.find(
 		(rate) => rate.code === teamMember.rate_level_code
 	);
 
-	return rateInfo ? rateInfo.rate : null;
+	return rateInfo ? rateInfo.rate : 0;
 }
 
 export function convertCurrencyToNum(currency: string) {
 	return Number(currency.replace(/[^0-9.-]+/g, ""));
+}
+
+export function baseId(id: string | undefined) {
+	return id?.split("_")[0];
 }

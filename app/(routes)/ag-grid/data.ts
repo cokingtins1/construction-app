@@ -104,12 +104,13 @@ export const WBSAssignments: WBSAssignment[] = [
 		total_dollars: 6000,
 		total_hours: 30,
 	},
+
 	{
 		id: "c62d5ba0-dfa9-4456-b776-b0d98109dc6b",
 		wbs_activity_id: "e4235cc1-747c-4ad5-8380-52ce8b5c0b79",
-		team_member_id: "f3f907a8-8489-4324-da0f-4a2b9d90c15e",
+		team_member_id: "232ab19b-9b76-6c77-b62e-6735178a9c7c",
 		hours: 15,
-		rate: 70,
+		rate: 165,
 		total_dollars: 1050,
 		total_hours: 15,
 	},
@@ -122,20 +123,41 @@ export const WBSAssignments: WBSAssignment[] = [
 		total_dollars: 4000,
 		total_hours: 20,
 	},
+
 	{
 		id: "27f651eb-158a-4124-aa7a-4a6450bd6f3b",
 		wbs_activity_id: "aae495ae-7a68-4537-8a21-0af6a2449fef",
 		team_member_id: "232ab19b-9b76-6c77-b62e-6735178a9c7c",
-		hours: 18,
+		hours: 401,
 		rate: 165,
 		total_dollars: 2970,
 		total_hours: 18,
 	},
+	//duplicate Lee
+	{
+		id: "8b2d311f-9ace-8723-10da-bf8a2f08288c",
+		wbs_activity_id: "aae495ae-7a68-4537-8a21-0af6a2449fef",
+		team_member_id: "232ab19b-9b76-6c77-b62e-6735178a9c7c",
+		hours: 400,
+		rate: 165,
+		total_dollars: 2450,
+		total_hours: 35,
+	},
+	{
+		id: "8b2d311f-9ace-8723-10da-bf8a2f08288c",
+		wbs_activity_id: "e4235cc1-747c-4ad5-8380-52ce8b5c0b79",
+		team_member_id: "232ab19b-9b76-6c77-b62e-6735178a9c7c",
+		hours: 88,
+		rate: 165,
+		total_dollars: 2450,
+		total_hours: 35,
+	},
+	//Woods:
 	{
 		id: "6b490c68-37b6-478a-8558-e5bef54451bf",
 		wbs_activity_id: "aae495ae-7a68-4537-8a21-0af6a2449fef",
 		team_member_id: "f3f907a8-8489-4324-da0f-4a2b9d90c15e",
-		hours: 35,
+		hours: 1,
 		rate: 70,
 		total_dollars: 2450,
 		total_hours: 35,
@@ -184,9 +206,19 @@ export const teamMembers: TeamMember[] = [
 		rate_level_code: "PTL",
 	},
 	{
+		id: "232ab19b-9b76-6c77-b62e-6735178a9c7c",
+		first_name: "Alex",
+		last_name: "Lee",
+		middle_name: "",
+		email: "alee@test.com",
+		department: "HVAC",
+		title: "Project Team Leader",
+		rate_level_code: "PTL",
+	},
+	{
 		id: "f3f907a8-8489-4324-da0f-4a2b9d90c15e",
 		first_name: "Olivia",
-		last_name: "Woodds",
+		last_name: "Woods",
 		middle_name: "K",
 		email: "owoodds@test.com",
 		department: "HVAC",
@@ -205,6 +237,17 @@ const addTeamMember: TeamMember[] = [
 		department: "HVAC",
 		title: "Project Team Lead",
 		rate_level_code: "PTL",
+	},
+];
+
+export const addActivity: WBSActivity[] = [
+	{
+		id: "c651ac21-b74c-225f-ef11-fdf2eb9e2eb8",
+		task: "Task 5",
+		notes: "Notes for Task 5",
+		total_dollars: 0,
+		total_hours: 0,
+		wbs_template_id: "cc84b70d-f83f-4458-b799-d82a9f9cad55",
 	},
 ];
 
@@ -247,4 +290,7 @@ export const DB_DATA = {
 	WBSAssignments,
 	WBSActivities,
 	addTeamMember,
+	addActivity,
 };
+
+// In the part of my code where I'm changing a team member from one to the other, the functionality is faulty. Currently, the field of each column is set to each team member's id. The colId of each column will match the field value. If there are two columns with the same id i.e. the same team member is in two different columns, AG grid will append a "_1" to the colId of the duplicate team member. If there is a third instance of the same team member, a "_2" will be appended to the colId and so on. This functionality is good and is expected. However, when I change from one team member to another, the row values of the column that is now being duplicated gets copied over into the changed column's rows. Moreover, when the row data is changed for the changed column, the data also changes in the duplicated column. How can you fix my code so that when I change from on team member to another, only the colId and field update and the rows stay independent from any duplicate team member column?

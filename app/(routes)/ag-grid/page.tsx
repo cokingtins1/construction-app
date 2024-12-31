@@ -64,7 +64,7 @@ export default async function Page() {
 					{/* <DynamicWBS /> */}
 					<GenericWBS />
 				</div>
-				<div className="flex justify-center h-[500px] w-full"></div>
+				{/* <div className="flex justify-center h-[500px] w-full"></div> */}
 			</div>
 		</>
 	);
