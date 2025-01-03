@@ -285,7 +285,7 @@ export const rateLevel: RateLevel[] = [
 ];
 
 export const DB_DATA = {
-	teamMembers,
+	DB_teamMembers: teamMembers,
 	rateLevel,
 	WBSAssignments,
 	WBSActivities,

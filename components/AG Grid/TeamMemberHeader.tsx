@@ -8,6 +8,7 @@ type TeamMemberHeaderProps = {
 	teamMembers: TeamMember[];
 	currentMemberId: string;
 	gridRef: RefObject<AgGridReact<any>>;
+	rowData: any[];
 	onTeamMemberChange: (
 		oldMemberId: string,
 		newMemberId: string,
@@ -15,7 +16,13 @@ type TeamMemberHeaderProps = {
 	) => void;
 };
 export default function TeamMemberHeader(props: TeamMemberHeaderProps) {
-	const { teamMembers, currentMemberId, onTeamMemberChange, gridRef } = props;
+	const {
+		teamMembers,
+		currentMemberId,
+		onTeamMemberChange,
+		gridRef,
+		rowData,
+	} = props;
 
 	const findTeamMember = (id: string) => {
 		return teamMembers.find((m) => m.id === baseId(id));
@@ -35,6 +42,8 @@ export default function TeamMemberHeader(props: TeamMemberHeaderProps) {
 		return rowData;
 	}
 
+	// console.log("currentMemberId", teamMembers);
+
 	return (
 		<>
 			{currentMember ? (
@@ -42,7 +51,9 @@ export default function TeamMemberHeader(props: TeamMemberHeaderProps) {
 					teamMembers={teamMembers}
 					currentMemberId={currentMemberId}
 					onValueChange={(newId) => {
+						// const allRows = getAllRows();
 						const allRows = getAllRows();
+						// const {} =
 						onTeamMemberChange(currentMemberId, newId, allRows);
 						setCurrentMember(() => findTeamMember(newId));
 					}}

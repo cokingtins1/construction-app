@@ -1,6 +1,8 @@
 import DynamicWBS from "@/components/AG Grid/DynamicWBS";
 import GenericWBS from "@/components/AG Grid/GenericWBS";
 import GridExample from "@/components/AG Grid/GridExample";
+import GridNoState from "@/components/AG Grid/GridNoState";
+import GridNowRowData from "@/components/AG Grid/GridNowRowData";
 import WBSGrid from "@/components/AG Grid/WBSGrid";
 import { ActivitiesWithAssignments } from "@/lib/types";
 import { rateLevelOrder } from "@/lib/utils";
@@ -62,7 +64,8 @@ export default async function Page() {
 			<div className="flex flex-col gap-4">
 				<div className="flex justify-center h-[500px] w-full">
 					{/* <DynamicWBS /> */}
-					<GenericWBS />
+					{/* <GenericWBS /> */}
+					<GridNoState />
 				</div>
 				{/* <div className="flex justify-center h-[500px] w-full"></div> */}
 			</div>
